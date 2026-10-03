@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Split, Participant, Transaction, SplitType } from "../data/types";
 import { SEED_TRANSACTIONS, CURRENT_USER } from "../data/seed";
 import { API_BASE_URL } from "../data/config";
+import { computeEqualSplit } from "../data/splitMaths";
 
 const STORAGE_KEY = "gt-split:v1";
 
@@ -154,7 +155,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const createSplit = useCallback(async (input: CreateSplitInput) => {
     const hostShare =
       input.splitType === "equal"
-        ? Math.round((input.totalAmount / (input.participants.length + 1)) * 100) / 100
+        ? computeEqualSplit(input.totalAmount, input.participants.length).hostShare
         : input.totalAmount - input.participants.reduce((sum, p) => sum + (p.customShare ?? 0), 0);
 
     const response = await fetch(`${API_BASE_URL}/splits`, {

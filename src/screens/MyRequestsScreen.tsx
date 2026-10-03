@@ -97,7 +97,7 @@ export default function MyRequestsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.navigate("Home")}>
+        <Pressable onPress={() => navigation.navigate("Home", { tab: "home" })}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </Pressable>
         <Text style={styles.title}>My Requests</Text>

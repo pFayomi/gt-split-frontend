@@ -30,7 +30,7 @@ export default function TransferScreen() {
     if (!success) return;
     const timer = setTimeout(() => {
       setSuccess(false);
-      navigation.navigate("Home");
+      navigation.navigate("Home", { tab: "home" });
     }, 2500);
     return () => clearTimeout(timer);
   }, [success]);
@@ -118,7 +118,7 @@ export default function TransferScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.navigate("Home")}>
+        <Pressable onPress={() => navigation.navigate("Home", { tab: "home" })}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </Pressable>
         <Text style={styles.title}>Transfer</Text>
@@ -180,7 +180,7 @@ export default function TransferScreen() {
               label="Done"
               onPress={() => {
                 setSuccess(false);
-                navigation.navigate("Home");
+                navigation.navigate("Home", { tab: "home" });
               }}
             />
           </View>
@@ -210,7 +210,7 @@ function getStyles(colors: any) {
     errorText: { color: colors.danger, ...typography.small, marginTop: spacing.xs, textAlign: "center" },
     keypad: { marginTop: spacing.xl, width: 280, flexDirection: "row", flexWrap: "wrap", justifyContent: "center" },
     key: { width: 84, height: 66, alignItems: "center", justifyContent: "center", borderRadius: radii.md },
-    keyText: { fontSize: 24, color: colors.textPrimary, fontWeight: "500" },
+    keyText: { ...typography.bodyBold, fontSize: 24, lineHeight: 30, color: colors.textPrimary },
     modalOverlay: {
       flex: 1, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center", padding: spacing.lg,
     },

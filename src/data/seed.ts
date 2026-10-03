@@ -6,7 +6,7 @@ export const CURRENT_USER = {
   fullName: "Erioluwa Olateju",
   initials: "EO",
   accountNumber: "3005335181",
-  accountLabel: "From GTCreaB eSavers",
+  accountLabel: "From GTCrea8 eSavers",
   balance: 182450.75,
 };
 

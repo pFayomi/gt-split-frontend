@@ -6,26 +6,32 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
- "ios": {
-  "supportsTablet": true,
-  "infoPlist": {
-    "NSFaceIDUsageDescription": "GT Split uses Face ID to securely log you in.",
-    "NSContactsUsageDescription": "GT Split accesses your contacts so you can add people to a bill split."
-  }
-},
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "GT Split uses Face ID to securely log you in.",
+        "NSContactsUsageDescription": "GT Split accesses your contacts so you can add people to a bill split."
+      }
+    },
     "android": {
-      "permissions": ["USE_BIOMETRIC", "USE_FINGERPRINT", "READ_CONTACTS"],
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "READ_CONTACTS"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-        
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

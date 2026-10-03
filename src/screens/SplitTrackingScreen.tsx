@@ -1,20 +1,36 @@
 import React from "react";
 import { View, Text, StyleSheet, SafeAreaView, Pressable, ScrollView } from "react-native";
-import { spacing, typography, radii, shadow } from "../theme/theme";
+import { spacing, typography, radii } from "../theme/theme";
 import { useTheme } from "../theme/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import Avatar from "../components/Avatar";
-import { StatusBadge } from "../components/Card";
-import Button from "../components/Button";
 import { formatNaira } from "../data/format";
 import { useAppStore } from "../state/AppStore";
 import { CURRENT_USER } from "../data/seed";
+
+const GT_ORANGE = "#E35205";
+const GT_ORANGE_SOFT = "#FCE3D6";
+const PAID_GREEN = "#22A559";
+const PENDING_YELLOW = "#F5B800";
 
 function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
   return parts.map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function InitialsBubble({ initials, status, styles }: { initials: string; status: "paid" | "pending"; styles: any }) {
+  const paid = status === "paid";
+  return (
+    <View style={styles.bubbleWrap}>
+      <View style={styles.bubble}>
+        <Text style={styles.bubbleText}>{initials}</Text>
+      </View>
+      <View style={[styles.statusDot, { backgroundColor: paid ? PAID_GREEN : PENDING_YELLOW }]}>
+        <Ionicons name={paid ? "checkmark" : "time"} size={10} color="#fff" />
+      </View>
+    </View>
+  );
 }
 
 export default function SplitTrackingScreen() {
@@ -47,57 +63,69 @@ export default function SplitTrackingScreen() {
     markParticipantPaid(split.id, participantId);
   };
 
+  const goHome = () => navigation.navigate("Home", { tab: "home" });
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Pressable onPress={() => navigation.navigate("Home")}>
+          <Pressable onPress={goHome} hitSlop={12}>
             <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </Pressable>
-          <Text style={styles.title}>{split.title}</Text>
-          <View style={{ width: 24 }} />
+          <View style={styles.hostBadge}>
+            <Text style={styles.hostBadgeText}>{split.title.trim().charAt(0).toUpperCase()}</Text>
+          </View>
         </View>
 
         <Text style={styles.totalAmount}>{formatNaira(split.totalAmount)}</Text>
+        <Text style={styles.title}>For {split.title}</Text>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${Math.min(progress * 100, 100)}%` }]} />
+        <View style={styles.progressCard}>
+          <Text style={styles.remainingText}>
+            {split.status === "settled" ? "Fully settled" : `${formatNaira(remaining)} left`}
+          </Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.min(progress * 100, 100)}%` }]} />
+          </View>
         </View>
-        <Text style={styles.remainingText}>
-          {split.status === "settled" ? "Fully settled" : `${formatNaira(remaining)} left`}
-        </Text>
 
         <View style={styles.participantRow}>
-          <Avatar initials={myInitials} size={36} />
-          <View style={{ flex: 1, marginLeft: spacing.sm }}>
+          <InitialsBubble initials={myInitials} status="paid" styles={styles} />
+          <View style={styles.participantInfo}>
             <Text style={styles.participantName}>You</Text>
-            <Text style={styles.participantSub}>Host \u2022 You're owed {formatNaira(myShare)}</Text>
+            <Text style={styles.participantSub}>Host {"\u2022"} You've paid {formatNaira(myShare)}</Text>
           </View>
-          <StatusBadge status="paid" />
         </View>
 
-        {split.participants.map((p) => (
-          <View key={p.id} style={styles.participantRow}>
-            <Avatar initials={p.initials} size={36} />
-            <View style={{ flex: 1, marginLeft: spacing.sm }}>
-              <Text style={styles.participantName}>{p.name}</Text>
-              <Text style={styles.participantSub}>{formatNaira(p.share)}</Text>
-            </View>
-            <Pressable onPress={() => handleToggle(p.id)}>
-              <StatusBadge status={p.status === "paid" ? "paid" : "pending"} />
+        {split.participants.map((p) => {
+          const status = p.status === "paid" ? "paid" : "pending";
+          return (
+            <Pressable
+              key={p.id}
+              onPress={() => handleToggle(p.id)}
+              style={({ pressed }) => [styles.participantRow, pressed && { opacity: 0.85 }]}
+            >
+              <InitialsBubble initials={p.initials} status={status} styles={styles} />
+              <View style={styles.participantInfo}>
+                <Text style={styles.participantName}>{p.name}</Text>
+                <Text style={styles.participantSub}>{status === "paid" ? "Paid Share" : "Pending"}</Text>
+              </View>
+              <Text style={styles.participantAmount}>{formatNaira(p.share)}</Text>
             </Pressable>
-          </View>
-        ))}
+          );
+        })}
 
-        <Text style={styles.tapHint}>Tap a status badge to toggle paid / pending</Text>
+        <Text style={styles.tapHint}>Tap a participant to toggle paid / pending</Text>
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button
-          label="Back to Home"
-          onPress={() => navigation.navigate("Home")}
-          variant="outline"
-        />
+        <Pressable
+          onPress={goHome}
+          style={({ pressed }) => [styles.footerBtn, pressed && { opacity: 0.85 }]}
+        >
+          <Ionicons name="home" size={18} color="#fff" />
+          <Text style={styles.footerLabel}>Back to Home</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -108,22 +136,69 @@ function getStyles(colors: any) {
     container: { flex: 1, backgroundColor: colors.background },
     scrollContent: { padding: spacing.lg, paddingBottom: spacing.xl },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
-    title: { ...typography.h3, color: colors.textPrimary },
-    totalAmount: { ...typography.h1, color: colors.textPrimary, marginBottom: spacing.sm },
-    progressTrack: {
-      height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: "hidden", marginBottom: spacing.xs,
+    hostBadge: {
+      width: 44, height: 44, borderRadius: 22, backgroundColor: "#fff",
+      alignItems: "center", justifyContent: "center",
+      shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2,
     },
-    progressFill: { height: "100%", backgroundColor: colors.primary },
-    remainingText: { ...typography.small, color: colors.textSecondary, marginBottom: spacing.lg },
+    hostBadgeText: { ...typography.bodyBold, color: GT_ORANGE },
+    totalAmount: { ...typography.h1, color: colors.textPrimary, marginBottom: spacing.xs },
+    title: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.lg },
+
+    progressCard: {
+      backgroundColor: "#fff", borderRadius: radii.md, paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm, marginBottom: spacing.lg,
+    },
+    remainingText: { ...typography.small, color: colors.textPrimary, textAlign: "right", marginBottom: spacing.xs },
+    progressTrack: { height: 6, borderRadius: 3, backgroundColor: GT_ORANGE_SOFT, overflow: "hidden" },
+    progressFill: { height: "100%", borderRadius: 3, backgroundColor: GT_ORANGE },
+
     participantRow: {
-      flexDirection: "row", alignItems: "center", backgroundColor: colors.card,
-      borderRadius: radii.md, padding: spacing.sm, marginBottom: spacing.sm,
-      borderWidth: 1, borderColor: colors.border, ...shadow,
+      flexDirection: "row", alignItems: "center", backgroundColor: "#fff",
+      borderRadius: radii.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
+      marginBottom: spacing.sm, borderWidth: 1, borderColor: "#B9BCC6",
     },
-    participantName: { ...typography.bodyBold, color: colors.textPrimary },
+    participantInfo: { flex: 1, marginLeft: spacing.sm },
+    participantName: { ...typography.bodyBold, color: "#111" },
     participantSub: { ...typography.small, color: colors.textSecondary },
+    participantAmount: { ...typography.bodyBold, color: "#111" },
+
+    bubbleWrap: { width: 40, height: 40 },
+    bubble: {
+      width: 40, height: 40, borderRadius: 20, backgroundColor: "#fff",
+      borderWidth: 1, borderColor: "#ECECF0", alignItems: "center", justifyContent: "center",
+    },
+    bubbleText: { ...typography.small, color: GT_ORANGE, fontWeight: "600" },
+    statusDot: {
+      position: "absolute", right: -2, bottom: -2, width: 16, height: 16, borderRadius: 8,
+      alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "#fff",
+    },
+
     tapHint: { ...typography.small, color: colors.textMuted, textAlign: "center", marginTop: spacing.sm },
     emptyText: { ...typography.body, color: colors.textSecondary, textAlign: "center", marginTop: spacing.xxl },
-    footer: { padding: spacing.lg, backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border },
+
+    footer: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.lg,
+      backgroundColor: colors.background,
+      alignItems: "flex-end",
+    },
+    footerBtn: {
+      width: "55%",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: GT_ORANGE,
+      borderRadius: 10,
+      paddingVertical: spacing.md,
+      shadowColor: GT_ORANGE,
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
+    },
+    footerLabel: { ...typography.button, fontSize: 16, color: "#fff" },
   });
 }

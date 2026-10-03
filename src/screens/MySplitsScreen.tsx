@@ -65,7 +65,7 @@ export default function MySplitsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.navigate("Home")}>
+        <Pressable onPress={() => navigation.navigate("Home", { tab: "home" })}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </Pressable>
         <Text style={styles.title}>My Splits</Text>
@@ -78,7 +78,7 @@ export default function MySplitsScreen() {
         </View>
       ) : splits.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="receipt-outline" size={48} color={colors.textMuted} />
+          <Ionicons name="receipt" size={48} color={colors.textMuted} />
           <Text style={styles.emptyText}>You haven't created any splits yet</Text>
         </View>
       ) : (

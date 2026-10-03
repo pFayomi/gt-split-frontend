@@ -1,3 +1,41 @@
+import { type TextStyle } from "react-native";
+
+/**
+ * Figtree — geometric-humanist with softly rounded letterforms: the clean,
+ * friendly-but-premium fintech look. Loaded in App.tsx.
+ *
+ * A bundled font needs its exact family name per weight (React Native ignores
+ * fontWeight for bundled families on Android), so weights are carried by
+ * `fontFamily` and `fontWeight` is kept alongside for iOS/web.
+ */
+export const fonts = {
+  light: "Figtree_300Light",
+  regular: "Figtree_400Regular",
+  medium: "Figtree_500Medium",
+  semibold: "Figtree_600SemiBold",
+  bold: "Figtree_700Bold",
+  extrabold: "Figtree_800ExtraBold",
+  black: "Figtree_900Black",
+};
+
+export type FontWeightToken = "300" | "400" | "500" | "600" | "700" | "800" | "900";
+
+const FAMILY_BY_WEIGHT: Record<FontWeightToken, string> = {
+  "300": fonts.light,
+  "400": fonts.regular,
+  "500": fonts.medium,
+  "600": fonts.semibold,
+  "700": fonts.bold,
+  "800": fonts.extrabold,
+  "900": fonts.black,
+};
+
+/** Pair a weight with its family so bolding works on every platform. */
+export const fw = (weight: FontWeightToken): TextStyle => ({
+  fontFamily: FAMILY_BY_WEIGHT[weight],
+  fontWeight: weight,
+});
+
 export const lightColors = {
   primary: "#F15A22",
   primaryDark: "#D8481A",
@@ -58,15 +96,32 @@ export const radii = {
   pill: 999,
 };
 
+/**
+ * Type scale. Hierarchy comes from weight + size, not decoration:
+ * extrabold/bold for headings and section titles, semibold/medium for buttons,
+ * nav labels and account names, regular for supporting copy.
+ */
 export const typography = {
-  h1: { fontSize: 28, fontWeight: "700" as const },
-  h2: { fontSize: 22, fontWeight: "700" as const },
-  h3: { fontSize: 18, fontWeight: "600" as const },
-  body: { fontSize: 15, fontWeight: "400" as const },
-  bodyBold: { fontSize: 15, fontWeight: "600" as const },
-  small: { fontSize: 13, fontWeight: "400" as const },
-  smallBold: { fontSize: 13, fontWeight: "600" as const },
-  label: { fontSize: 12, fontWeight: "500" as const },
+  /** Hero numbers, e.g. the account balance */
+  display: { fontFamily: fonts.extrabold, fontSize: 28, lineHeight: 34, letterSpacing: -0.6 },
+  /** Screen titles, e.g. "Payments" */
+  screenTitle: { fontFamily: fonts.extrabold, fontSize: 30, lineHeight: 36, letterSpacing: -0.6 },
+  h1: { fontFamily: fonts.bold, fontSize: 28, lineHeight: 34, letterSpacing: -0.5 },
+  h2: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 28, letterSpacing: -0.4 },
+  h3: { fontFamily: fonts.bold, fontSize: 18, lineHeight: 24, letterSpacing: -0.3 },
+  /** Section titles, e.g. "Shortcuts", "Transaction history", "Investments" */
+  sectionTitle: { fontFamily: fonts.extrabold, fontSize: 20, lineHeight: 26, letterSpacing: -0.4 },
+  body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21, letterSpacing: 0 },
+  bodyMedium: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 21, letterSpacing: -0.05 },
+  bodyBold: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 21, letterSpacing: -0.1 },
+  small: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, letterSpacing: 0 },
+  smallMedium: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, letterSpacing: -0.05 },
+  smallBold: { fontFamily: fonts.semibold, fontSize: 13, lineHeight: 18, letterSpacing: -0.1 },
+  label: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
+  labelBold: { fontFamily: fonts.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
+  /** Buttons and tappable pills */
+  button: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, letterSpacing: -0.1 },
+  buttonLarge: { fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22, letterSpacing: -0.2 },
 };
 
 export const shadow = {

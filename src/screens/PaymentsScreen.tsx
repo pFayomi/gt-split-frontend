@@ -1,23 +1,34 @@
 import React from "react";
 import { View, Text, StyleSheet, SafeAreaView, Pressable, ScrollView } from "react-native";
-import { spacing, typography, radii } from "../theme/theme";
 import { useTheme } from "../theme/ThemeContext";
-import { Ionicons } from "@expo/vector-icons";
+import { typography } from "../theme/theme";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
-const SERVICES = [
-  { icon: "airplane-outline", label: "Buy airtime", route: null },
-  { icon: "wifi-outline", label: "Buy data", route: null },
-  { icon: "receipt-outline", label: "Split Bills", route: "CreateSplit", highlight: true },
-  { icon: "paper-plane-outline", label: "Airlines, Travels & Transportation", route: null },
-  { icon: "play-circle-outline", label: "Cable TV", route: null },
-  { icon: "trending-up-outline", label: "Capital Market & Investments", route: null },
-  { icon: "lock-closed-outline", label: "Distributors & Agent Payments", route: null },
-  { icon: "water-outline", label: "Electricity & Water", route: null },
-  { icon: "gift-outline", label: "Entertainment & E-Vouchers", route: null },
-  { icon: "home-outline", label: "Estate & Associations", route: null },
-  { icon: "business-outline", label: "Financial Institutions", route: null },
-  { icon: "document-text-outline", label: "Government Taxes and Levies", route: null },
+type Service = {
+  icon: string;
+  family?: "material";
+  label: string;
+  route: string | null;
+  bg: string;   // pastel circle background
+  tint: string; // icon colour (also used for the soft ring)
+};
+
+const SERVICES: Service[] = [
+  { icon: "signal-cellular-4-bar", family: "material", label: "Buy airtime", route: null, bg: "#EEE8FD", tint: "#A855F7" },
+  { icon: "wifi", label: "Buy data", route: null, bg: "#E3EAFD", tint: "#2563EB" },
+  { icon: "receipt", label: "Split Bills", route: "CreateSplit", bg: "#FDE9E5", tint: "#F0523A" },
+  { icon: "airplane", label: "Airlines, Travels & Transportation/Logistics", route: null, bg: "#E1F2FD", tint: "#1D9BF0" },
+  { icon: "tv", label: "Cable TV", route: null, bg: "#D5F5EE", tint: "#14D8C8" },
+  { icon: "analytics", family: "material", label: "Capital Market & Investments", route: null, bg: "#FDEFD6", tint: "#F59E0B" },
+  { icon: "clipboard", label: "Distributors & Agent Payments", route: null, bg: "#FDE2EA", tint: "#EC4899" },
+  { icon: "water", label: "Electricity & Water", route: null, bg: "#DCEBFB", tint: "#0EA5E9" },
+  { icon: "ticket", label: "Entertainment & E-Vouchers", route: null, bg: "#EEF8C9", tint: "#84CC16" },
+  { icon: "home-work", family: "material", label: "Estate & Associations", route: null, bg: "#E3EAFD", tint: "#2563EB" },
+  { icon: "account-balance", family: "material", label: "Financial Institutions", route: null, bg: "#EEE8FD", tint: "#A855F7" },
+  // Extras not in the screenshot, restyled to match the same pastel-circle look
+  { icon: "document-text", label: "Government Taxes and Levies", route: null, bg: "#FDE3E1", tint: "#EF4444" },
+
 ];
 
 export default function PaymentsScreen() {
@@ -28,38 +39,39 @@ export default function PaymentsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </Pressable>
+        {/* No back arrow: the floating nav bar is the way in and out of this screen. */}
         <Text style={styles.title}>Payments</Text>
-        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {SERVICES.map((service) => (
-          <Pressable
-            key={service.label}
-            style={styles.row}
-            onPress={() => {
-              if (service.route) navigation.navigate(service.route);
-            }}
-          >
-            <View
-              style={[
-                styles.iconWrap,
-                service.highlight && { backgroundColor: colors.primary },
-              ]}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {SERVICES.map((service) => {
+          const IconComp: any = service.family === "material" ? MaterialIcons : Ionicons;
+          return (
+            <Pressable
+              key={service.label}
+              style={styles.row}
+              onPress={() => {
+                if (service.route) navigation.navigate(service.route);
+              }}
             >
-              <Ionicons
-                name={service.icon as any}
-                size={20}
-                color={service.highlight ? colors.white : colors.primary}
-              />
-            </View>
-            <Text style={styles.label}>{service.label}</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </Pressable>
-        ))}
+              <View
+                style={[
+                  styles.iconWrap,
+                  { backgroundColor: service.bg, borderColor: service.tint + "33" },
+                ]}
+              >
+                <IconComp name={service.icon} size={22} color={service.tint} />
+              </View>
+              <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
+                {service.label}
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+            </Pressable>
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
@@ -69,21 +81,42 @@ function getStyles(colors: any) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     header: {
-      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-      padding: spacing.lg, backgroundColor: colors.card,
-      borderBottomWidth: 1, borderBottomColor: colors.border,
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingTop: 36,
+      paddingBottom: 12,
     },
-    title: { ...typography.h3, color: colors.textPrimary },
-    scrollContent: { padding: spacing.lg },
+    title: {
+      ...typography.screenTitle,
+      fontSize: 32,
+      lineHeight: 38,
+      color: colors.textPrimary,
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 120, // clears the floating bottom tab bar
+    },
     row: {
-      flexDirection: "row", alignItems: "center", backgroundColor: colors.card,
-      borderRadius: radii.md, padding: spacing.sm, marginBottom: spacing.sm,
-      borderWidth: 1, borderColor: colors.border,
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 16, // 48 circle + 16 gap = 64 row pitch, as in the screenshot
     },
     iconWrap: {
-      width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryLight,
-      alignItems: "center", justifyContent: "center", marginRight: spacing.sm,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      borderWidth: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
     },
-    label: { flex: 1, ...typography.bodyBold, color: colors.textPrimary },
+    label: {
+      flex: 1,
+      ...typography.body,
+      color: colors.textPrimary,
+      marginRight: 8,
+    },
   });
 }

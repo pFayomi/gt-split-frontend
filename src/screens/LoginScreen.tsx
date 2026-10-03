@@ -8,6 +8,10 @@ import { Ionicons } from "@expo/vector-icons";
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "bio", "0", "del"];
 
+// Brand accent taken from the design (orange)
+const ACCENT = "#F26B3A";
+const SOFT_GRAY = "#F2F2F2";
+
 const DEMO_ACCOUNTS = [
   { label: "Erioluwa", accountNumber: "3005335181" },
   { label: "Bibian", accountNumber: "3005335182" },
@@ -81,14 +85,15 @@ export default function LoginScreen() {
       <Pressable onPress={toggleTheme} style={styles.themeToggle}>
         <Ionicons
           name={mode === "light" ? "moon-outline" : "sunny-outline"}
-          size={20}
-          color={colors.textSecondary}
+          size={18}
+          color={colors.textMuted}
         />
       </Pressable>
 
+      {/* Placeholder logo: swap the Ionicons for an <Image source={...} /> later */}
       <View style={styles.logoWrap}>
         <View style={styles.logoCircle}>
-          <Text style={styles.logoText}>GT</Text>
+          <Ionicons name="person" size={34} color={ACCENT} />
         </View>
       </View>
 
@@ -105,21 +110,24 @@ export default function LoginScreen() {
           <Pressable onPress={() => setShowDemoDropdown((v) => !v)} style={styles.dropdownToggle}>
             <Ionicons
               name={showDemoDropdown ? "chevron-up" : "chevron-down"}
-              size={18}
-              color={colors.textSecondary}
+              size={16}
+              color={colors.textMuted}
             />
           </Pressable>
         </View>
         {showDemoDropdown && (
           <View style={styles.dropdownList}>
-            {DEMO_ACCOUNTS.map((acc) => (
+            {DEMO_ACCOUNTS.map((acc, i) => (
               <Pressable
                 key={acc.accountNumber}
                 onPress={() => {
                   setAccountNumber(acc.accountNumber);
                   setShowDemoDropdown(false);
                 }}
-                style={styles.dropdownItem}
+                style={[
+                  styles.dropdownItem,
+                  i === DEMO_ACCOUNTS.length - 1 && { borderBottomWidth: 0 },
+                ]}
               >
                 <Text style={styles.dropdownItemText}>{acc.label}</Text>
               </Pressable>
@@ -135,7 +143,7 @@ export default function LoginScreen() {
             key={i}
             style={[
               styles.dot,
-              i < pin.length && { backgroundColor: colors.primary },
+              i < pin.length && { backgroundColor: ACCENT },
               error && { backgroundColor: colors.danger },
             ]}
           />
@@ -153,12 +161,21 @@ export default function LoginScreen() {
                   <Pressable onPress={handleBiometricLogin} style={styles.biometricButton}>
                     <Ionicons
                       name={biometricLabel === "Face ID" ? "scan-outline" : "finger-print-outline"}
-                      size={26}
-                      color={colors.primary}
+                      size={28}
+                      color={ACCENT}
                     />
                   </Pressable>
                 )}
               </View>
+            );
+          }
+          if (k === "del") {
+            return (
+              <Pressable key={idx} onPress={() => handleKey(k)} style={styles.key}>
+                <View style={styles.delBox}>
+                  <Text style={styles.delText}>{"\u2715"}</Text>
+                </View>
+              </Pressable>
             );
           }
           return (
@@ -168,10 +185,10 @@ export default function LoginScreen() {
               disabled={k === ""}
               style={({ pressed }) => [
                 styles.key,
-                pressed && k !== "" && { backgroundColor: colors.primaryLight },
+                pressed && k !== "" && { backgroundColor: SOFT_GRAY },
               ]}
             >
-              <Text style={styles.keyText}>{k === "del" ? "\u2715" : k}</Text>
+              <Text style={styles.keyText}>{k}</Text>
             </Pressable>
           );
         })}
@@ -185,64 +202,95 @@ export default function LoginScreen() {
 
 function getStyles(colors: any) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: spacing.lg,
+    },
     themeToggle: { position: "absolute", top: 50, right: spacing.lg, padding: 4 },
     logoWrap: { marginBottom: spacing.md },
     logoCircle: {
-      width: 72,
-      height: 72,
-      borderRadius: 18,
-      backgroundColor: colors.primary,
+      width: 76,
+      height: 76,
+      borderRadius: 38,
+      backgroundColor: "#2B2B2B",
       alignItems: "center",
       justifyContent: "center",
     },
-    logoText: { color: colors.white, fontWeight: "800", fontSize: 22 },
-    accountField: { width: 240, marginBottom: spacing.lg },
+    accountField: { width: 220, marginBottom: spacing.md },
     accountRow: {
-      flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.border,
-      borderRadius: radii.md, overflow: "hidden",
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: SOFT_GRAY,
+      borderRadius: radii.md,
+      overflow: "hidden",
     },
     accountInput: {
-      flex: 1, padding: 10, textAlign: "center", color: colors.textPrimary, ...typography.small,
+      flex: 1,
+      paddingVertical: 8,
+      paddingLeft: 32,
+      textAlign: "center",
+      color: "#222222",
+      ...typography.small,
     },
-    dropdownToggle: {
-      paddingHorizontal: 10, paddingVertical: 10, borderLeftWidth: 1, borderLeftColor: colors.border,
-    },
+    dropdownToggle: { width: 32, alignItems: "center", justifyContent: "center", paddingVertical: 8 },
     dropdownList: {
-      marginTop: 4, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md,
-      backgroundColor: colors.card, overflow: "hidden",
+      marginTop: 4,
+      borderRadius: radii.md,
+      backgroundColor: SOFT_GRAY,
+      overflow: "hidden",
     },
-    dropdownItem: { paddingVertical: 10, paddingHorizontal: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
-    dropdownItemText: { color: colors.textPrimary, ...typography.small, textAlign: "center" },
-    title: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
+    dropdownItem: {
+      paddingVertical: 9,
+      paddingHorizontal: spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: "#DDDDDD",
+    },
+    dropdownItemText: { color: "#222222", ...typography.small, textAlign: "center" },
+    title: {
+      ...typography.bodyBold,
+      fontSize: 17,
+      lineHeight: 23,
+      color: colors.textPrimary,
+      marginBottom: 14,
+    },
     dotsRow: { flexDirection: "row", gap: 12, marginBottom: spacing.sm },
-    dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.border },
+    dot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: "#8A8A8A" },
     statusText: { color: colors.textSecondary, ...typography.small, marginTop: spacing.xs },
     errorText: { color: colors.danger, ...typography.small, marginTop: spacing.xs, textAlign: "center" },
     keypad: {
-      marginTop: spacing.xl,
-      width: 280,
+      marginTop: spacing.lg,
+      width: 303,
       flexDirection: "row",
       flexWrap: "wrap",
       justifyContent: "center",
     },
     key: {
-      width: 84,
-      height: 66,
+      width: 101,
+      height: 88,
       alignItems: "center",
       justifyContent: "center",
       borderRadius: radii.md,
     },
-    keyText: { fontSize: 24, color: colors.textPrimary, fontWeight: "500" },
-    biometricButton: {
-      width: 52,
-      height: 52,
-      borderRadius: 26,
-      backgroundColor: colors.primaryLight,
+    keyText: { ...typography.h1, fontSize: 32, lineHeight: 38, color: colors.textPrimary },
+    delBox: {
+      width: 42,
+      height: 32,
+      borderRadius: 7,
+      backgroundColor: SOFT_GRAY,
       alignItems: "center",
       justifyContent: "center",
     },
-    forgot: { color: colors.primary, marginTop: spacing.lg, ...typography.bodyBold },
-    hint: { color: colors.textMuted, marginTop: spacing.md, ...typography.small },
+    delText: { ...typography.smallMedium, fontSize: 14, color: "#444444" },
+    biometricButton: {
+      width: 52,
+      height: 52,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    forgot: { ...typography.bodyMedium, color: ACCENT, marginTop: spacing.md },
+    hint: { ...typography.small, fontSize: 11, lineHeight: 15, color: colors.textMuted, marginTop: spacing.sm },
   });
 }
