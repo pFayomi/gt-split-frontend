@@ -4,15 +4,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://gt-split-backend.vercel.app/:path*"
+      "destination": "https://gt-split-backend.onrender.com/:path*"
     },
     {
       "source": "/pay/:path*",
-      "destination": "https://gt-split-backend.vercel.app/pay/:path*"
+      "destination": "https://gt-split-backend.onrender.com/pay/:path*"
     },
     {
       "source": "/auto-split/:path*",
-      "destination": "https://gt-split-backend.vercel.app/auto-split/:path*"
+      "destination": "https://gt-split-backend.onrender.com/auto-split/:path*"
     },
     {
       "source": "/((?!api/|pay/|auto-split/).*)",
