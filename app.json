@@ -27,9 +27,7 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
+    "web": { "bundler": "metro", "output": "single", "favicon": "./assets/favicon.png" },
     "plugins": [
       "expo-font"
     ]
