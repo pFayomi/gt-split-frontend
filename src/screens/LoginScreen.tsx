@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable, SafeAreaView, TextInput } from "react-native";
+import { View, Text, StyleSheet, Pressable, SafeAreaView, TextInput, Image } from "react-native";
 import { spacing, typography, radii } from "../theme/theme";
 import { useTheme } from "../theme/ThemeContext";
 import { useAppStore } from "../state/AppStore";
@@ -89,10 +89,14 @@ export default function LoginScreen() {
         />
       </Pressable>
 
-      {/* Placeholder logo: swap the Ionicons for an <Image source={...} /> later */}
+      {/* GTWorld avatar, clipped to the same 76x76 circle the placeholder icon used */}
       <View style={styles.logoWrap}>
         <View style={styles.logoCircle}>
-          <Ionicons name="person" size={34} color={ACCENT} />
+          <Image
+            source={require("../../assets/gtco-avatar.jpg")}
+            style={styles.logoImage}
+            resizeMode="cover"
+          />
         </View>
       </View>
 
@@ -173,6 +177,12 @@ function getStyles(colors: any) {
       backgroundColor: "#2B2B2B",
       alignItems: "center",
       justifyContent: "center",
+      overflow: "hidden",
+    },
+    logoImage: {
+      width: 76,
+      height: 76,
+      borderRadius: 38,
     },
     accountField: { width: 220, marginBottom: spacing.md },
     accountRow: {
