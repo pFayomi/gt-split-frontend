@@ -31,6 +31,10 @@ const SHORTCUT_VARIANTS = {
 } as const;
 type ShortcutVariant = keyof typeof SHORTCUT_VARIANTS;
 
+function firstNameOf(fullName: string): string {
+  return fullName.trim().split(/\s+/).filter(Boolean)[0] ?? fullName.trim();
+}
+
 export default function HomeScreen() {
   const { colors, mode, toggleTheme } = useTheme();
   const styles = getStyles(colors);
@@ -90,7 +94,7 @@ export default function HomeScreen() {
           adjustsFontSizeToFit
           minimumFontScale={0.8}
         >
-          Hello, {currentUser?.fullName ?? CURRENT_USER.name}!
+          Hello, {currentUser ? firstNameOf(currentUser.fullName) : CURRENT_USER.name}!
         </Text>
         <View style={styles.headerIcons}>
           <View>
@@ -204,7 +208,10 @@ export default function HomeScreen() {
               <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
               <Text style={styles.actionPillText}>Fund account</Text>
             </Pressable>
-            <Pressable style={styles.actionPillOutline}>
+            <Pressable
+              style={styles.actionPillOutline}
+              onPress={() => navigation.navigate("TransferBeneficiaries")}
+            >
               <DoubleChevron size={16} color={colors.primary} />
               <Text style={styles.actionPillOutlineText}>Transfer</Text>
             </Pressable>

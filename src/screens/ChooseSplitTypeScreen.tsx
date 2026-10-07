@@ -9,11 +9,7 @@ import {
   ScrollView,
   Modal,
   Dimensions,
-  Animated,
-  Easing,
-  Platform,
 } from "react-native";
-import { BlurView } from "expo-blur";
 import { spacing, typography, radii, fw } from "../theme/theme";
 import { useTheme } from "../theme/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,14 +18,10 @@ import { formatNaira } from "../data/format";
 import { computeEqualSplit } from "../data/splitMaths";
 import { useAppStore } from "../state/AppStore";
 import { CURRENT_USER } from "../data/seed";
+import SuccessSheet from "../components/SuccessSheet";
 
 // GTBank brand orange (base color for this screen). Surfaces/text come from the theme.
 const GT_ORANGE = "#F05A22";
-const GT_GREEN = "#1FB141";
-
-// Bottom sheet takes ~42% of the screen (≈ 360pt on an iPhone 15's 852pt height)
-const SCREEN_H = Dimensions.get("window").height;
-const SHEET_H = Math.round(SCREEN_H * 0.42);
 
 type SplitType = "equal" | "custom";
 
@@ -57,9 +49,6 @@ export default function ChooseSplitTypeScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const dropdownRef = useRef<View>(null);
-
-  // success sheet animation (0 = hidden, 1 = shown)
-  const sheetAnim = useRef(new Animated.Value(0)).current;
 
   const numericTotal = parseFloat(totalAmount) || 0;
   const equalSplit = computeEqualSplit(numericTotal, participants.length);
@@ -107,23 +96,13 @@ export default function ChooseSplitTypeScreen() {
     setCustomShares((prev) => ({ ...prev, [participantId]: String(numeric) }));
   };
 
-  const openSuccessSheet = () => {
-    sheetAnim.setValue(0);
-    setShowSuccessModal(true);
-    Animated.timing(sheetAnim, {
-      toValue: 1,
-      duration: 320,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  };
-
   const handleProceed = async () => {
     const split = await createSplit({
       title: splitName,
       totalAmount: numericTotal,
       splitType,
       sourceAccountLabel: CURRENT_USER.accountLabel,
+      narration: (route.params as any)?.narration ?? null,
       participants: participants.map((p: any) => ({
         id: p.id,
         name: p.name,
@@ -135,28 +114,17 @@ export default function ChooseSplitTypeScreen() {
       })),
     });
     setCreatedSplitId(split.id);
-    openSuccessSheet();
+    setShowSuccessModal(true);
   };
 
-  /** Slides the sheet back out, then runs `afterClose` once it is off-screen. */
-  const dismissSuccessSheet = (afterClose: () => void) => {
-    Animated.timing(sheetAnim, {
-      toValue: 0,
-      duration: 200,
-      easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      setShowSuccessModal(false);
-      afterClose();
-    });
-  };
-
-  const goHome = () => dismissSuccessSheet(() => navigation.navigate("Home", { tab: "home" }));
+  // SuccessSheet plays its own exit animation, then calls these — so the
+  // navigation still happens with the sheet already off-screen.
+  const goHome = () => navigation.navigate("Home", { tab: "home" });
 
   const goToTracking = () => {
     const splitId = createdSplitId;
     if (!splitId) return;
-    dismissSuccessSheet(() => navigation.navigate("SplitTracking", { splitId }));
+    navigation.navigate("SplitTracking", { splitId });
   };
 
   const InitialsBadge = ({ initials }: { initials: string }) => (
@@ -164,11 +132,6 @@ export default function ChooseSplitTypeScreen() {
       <Text style={styles.badgeText}>{initials}</Text>
     </View>
   );
-
-  const sheetTranslateY = sheetAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [SHEET_H, 0],
-  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -327,75 +290,15 @@ export default function ChooseSplitTypeScreen() {
       </Modal>
 
       {/* Success bottom sheet */}
-      <Modal
+      <SuccessSheet
         visible={showSuccessModal}
-        transparent
-        animationType="none"
-        statusBarTranslucent
-        onRequestClose={goHome}
-      >
-        <View style={styles.sheetRoot}>
-          {/* Blurred version of the screen behind (fades in) */}
-          <Animated.View style={[StyleSheet.absoluteFill, { opacity: sheetAnim }]}>
-            <BlurView
-              intensity={Platform.OS === "ios" ? 35 : 60}
-              tint="dark"
-              experimentalBlurMethod="dimezisBlurView"
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.sheetDim} />
-          </Animated.View>
-
-          {/* Sheet */}
-          <Animated.View
-            style={[styles.sheet, { height: SHEET_H, transform: [{ translateY: sheetTranslateY }] }]}
-          >
-            <View style={styles.sheetHandle} />
-
-            {/* Icon + amount */}
-            <View style={styles.sheetTopRow}>
-              <View style={styles.sheetIcons}>
-                <View style={styles.sheetCheck}>
-                  <Ionicons name="checkmark" size={24} color="#fff" />
-                </View>
-                <View style={styles.sheetReceipt}>
-                  <Ionicons name="receipt" size={15} color={GT_ORANGE} />
-                </View>
-              </View>
-              <Text style={styles.sheetAmount}>{formatNaira(numericTotal)}</Text>
-            </View>
-
-            <Text style={styles.sheetTitle}>
-              Request to split the bill for {splitName} has been sent
-            </Text>
-
-            {/* Buttons */}
-            <View style={styles.sheetBtnRow}>
-              <Pressable
-                onPress={goToTracking}
-                style={({ pressed }) => [
-                  styles.sheetBtn,
-                  styles.sheetBtnOutline,
-                  pressed && { opacity: 0.8 },
-                ]}
-              >
-                <Text style={styles.sheetBtnOutlineText}>Review</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={goHome}
-                style={({ pressed }) => [
-                  styles.sheetBtn,
-                  styles.sheetBtnPrimary,
-                  pressed && { opacity: 0.8 },
-                ]}
-              >
-                <Text style={styles.sheetBtnPrimaryText}>Done</Text>
-              </Pressable>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
+        onClose={goHome}
+        badge="receipt"
+        amount={numericTotal}
+        title={`Request to split the bill for ${splitName} has been sent`}
+        secondary={{ label: "Review", onPress: goToTracking }}
+        primary={{ label: "Done", onPress: goHome }}
+      />
     </SafeAreaView>
   );
 }
@@ -563,77 +466,5 @@ function getStyles(colors: any) {
     menuItemBorder: { borderTopWidth: 1, borderTopColor: colors.border },
     menuItemText: { ...typography.body, color: colors.textPrimary },
     menuItemTextActive: { color: GT_ORANGE, ...fw("700") },
-
-    // Success bottom sheet (sized for iPhone 15, 393pt wide)
-    sheetRoot: { flex: 1, justifyContent: "flex-end" },
-    sheetDim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.25)" },
-    sheet: {
-      backgroundColor: colors.card,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      paddingHorizontal: 20,
-      paddingTop: 8,
-      paddingBottom: 30,
-    },
-    sheetHandle: {
-      alignSelf: "center",
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: colors.border,
-      marginBottom: 20,
-    },
-    sheetTopRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 18,
-    },
-    sheetIcons: { flexDirection: "row", alignItems: "center" },
-    sheetCheck: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: GT_GREEN,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    // Sits on top of the check circle — the card-coloured ring is what makes
-    // the overlap read as two badges instead of a clipping glitch.
-    sheetReceipt: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: colors.card,
-      borderWidth: 2.5,
-      borderColor: colors.card,
-      alignItems: "center",
-      justifyContent: "center",
-      marginLeft: -10,
-    },
-    sheetAmount: { ...typography.display, color: colors.textPrimary },
-    sheetTitle: {
-      ...typography.bodyBold,
-      fontSize: 20,
-      lineHeight: 27,
-      color: colors.textPrimary,
-      marginBottom: "auto",
-    },
-    sheetBtnRow: { flexDirection: "row", gap: 12 },
-    sheetBtn: {
-      flex: 1,
-      height: 50,
-      borderRadius: radii.md,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    sheetBtnOutline: {
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    sheetBtnOutlineText: { ...typography.buttonLarge, color: colors.textPrimary },
-    sheetBtnPrimary: { backgroundColor: GT_ORANGE },
-    sheetBtnPrimaryText: { ...typography.buttonLarge, color: "#fff" },
   });
 }

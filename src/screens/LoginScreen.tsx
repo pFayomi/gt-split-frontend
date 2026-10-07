@@ -5,8 +5,7 @@ import { useTheme } from "../theme/ThemeContext";
 import { useAppStore } from "../state/AppStore";
 import * as LocalAuthentication from "expo-local-authentication";
 import { Ionicons } from "@expo/vector-icons";
-
-const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "bio", "0", "del"];
+import PinEntry from "../components/PinEntry";
 
 // Brand accent taken from the design (orange)
 const ACCENT = "#F26B3A";
@@ -136,66 +135,22 @@ export default function LoginScreen() {
         )}
       </View>
 
-      <Text style={styles.title}>Enter Password</Text>
-      <View style={styles.dotsRow}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.dot,
-              i < pin.length && { backgroundColor: ACCENT },
-              error && { backgroundColor: colors.danger },
-            ]}
-          />
-        ))}
-      </View>
-      {loading && <Text style={styles.statusText}>Checking...</Text>}
-      {error && <Text style={styles.errorText}>{error}</Text>}
-
-      <View style={styles.keypad}>
-        {KEYS.map((k, idx) => {
-          if (k === "bio") {
-            return (
-              <View key={idx} style={styles.key}>
-                {biometricAvailable && (
-                  <Pressable onPress={handleBiometricLogin} style={styles.biometricButton}>
-                    <Ionicons
-                      name={biometricLabel === "Face ID" ? "scan-outline" : "finger-print-outline"}
-                      size={28}
-                      color={ACCENT}
-                    />
-                  </Pressable>
-                )}
-              </View>
-            );
-          }
-          if (k === "del") {
-            return (
-              <Pressable key={idx} onPress={() => handleKey(k)} style={styles.key}>
-                <View style={styles.delBox}>
-                  <Text style={styles.delText}>{"\u2715"}</Text>
-                </View>
-              </Pressable>
-            );
-          }
-          return (
-            <Pressable
-              key={idx}
-              onPress={() => handleKey(k)}
-              disabled={k === ""}
-              style={({ pressed }) => [
-                styles.key,
-                pressed && k !== "" && { backgroundColor: SOFT_GRAY },
-              ]}
-            >
-              <Text style={styles.keyText}>{k}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <PinEntry
+        title="Enter Password"
+        pin={pin}
+        length={6}
+        error={error}
+        status={loading ? "Checking..." : null}
+        hint="Demo accounts use PIN: 123456"
+        onKey={handleKey}
+        biometric={
+          biometricAvailable
+            ? { label: biometricLabel, onPress: handleBiometricLogin }
+            : undefined
+        }
+      />
 
       <Text style={styles.forgot}>Forgot password?</Text>
-      <Text style={styles.hint}>Demo accounts use PIN: 123456</Text>
     </SafeAreaView>
   );
 }
@@ -249,48 +204,6 @@ function getStyles(colors: any) {
       borderBottomColor: "#DDDDDD",
     },
     dropdownItemText: { color: "#222222", ...typography.small, textAlign: "center" },
-    title: {
-      ...typography.bodyBold,
-      fontSize: 17,
-      lineHeight: 23,
-      color: colors.textPrimary,
-      marginBottom: 14,
-    },
-    dotsRow: { flexDirection: "row", gap: 12, marginBottom: spacing.sm },
-    dot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: "#8A8A8A" },
-    statusText: { color: colors.textSecondary, ...typography.small, marginTop: spacing.xs },
-    errorText: { color: colors.danger, ...typography.small, marginTop: spacing.xs, textAlign: "center" },
-    keypad: {
-      marginTop: spacing.lg,
-      width: 303,
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "center",
-    },
-    key: {
-      width: 101,
-      height: 88,
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: radii.md,
-    },
-    keyText: { ...typography.h1, fontSize: 32, lineHeight: 38, color: colors.textPrimary },
-    delBox: {
-      width: 42,
-      height: 32,
-      borderRadius: 7,
-      backgroundColor: SOFT_GRAY,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    delText: { ...typography.smallMedium, fontSize: 14, color: "#444444" },
-    biometricButton: {
-      width: 52,
-      height: 52,
-      alignItems: "center",
-      justifyContent: "center",
-    },
     forgot: { ...typography.bodyMedium, color: ACCENT, marginTop: spacing.md },
-    hint: { ...typography.small, fontSize: 11, lineHeight: 15, color: colors.textMuted, marginTop: spacing.sm },
   });
 }

@@ -8,6 +8,8 @@ import {
   ScrollView,
   TextInput,
   useWindowDimensions,
+  Modal,
+  ActivityIndicator,
 } from "react-native";
 import { spacing, typography } from "../theme/theme";
 import { useTheme } from "../theme/ThemeContext";
@@ -15,7 +17,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { CURRENT_USER } from "../data/seed";
 import { useAppStore } from "../state/AppStore";
-import * as Contacts from "expo-contacts/legacy";
+import { API_BASE_URL } from "../data/config";
+import { Beneficiary } from "../data/types";
 
 // ---- GTWorld look & feel tokens -------------------------------------------
 const GT_ORANGE = "#E04F16";
@@ -51,18 +54,45 @@ type Participant = {
   isGTUser: boolean;
 };
 
-function resolveName(contact: Contacts.Contact): string {
-  if (contact.name && contact.name.trim().length > 0) return contact.name;
-  const combined = [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim();
-  if (combined.length > 0) return combined;
-  return contact.phoneNumbers?.[0]?.number ?? "Unnamed contact";
-}
-
 function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
   return parts.map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
+
+/** Stable id for an account-backed participant so re-adding never duplicates. */
+function accountId(acc: Beneficiary) {
+  return `user-${acc.accountNumber}`;
+}
+
+/** A row offered inside the "Add participants" sheet, GTWorld account or not. */
+type PickerItem = {
+  key: string;
+  name: string;
+  phone: string;
+  isGTUser: boolean;
+  meta: string;
+  /** Saved address-book style contact shown as its own card in the sheet. */
+  saved?: boolean;
+};
+
+/** Same normalisation the backend uses, so duplicate numbers are caught. */
+function phoneKey(phone: string) {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  return digits.startsWith("234") ? digits : digits.replace(/^0/, "234");
+}
+
+/** Saved contacts offered as ready-made cards inside the "Add participants" sheet. */
+const SAVED_CONTACTS: PickerItem[] = [
+  {
+    key: `contact-${phoneKey("08123456789")}`,
+    name: "Jude",
+    phone: "08123456789",
+    isGTUser: false,
+    meta: "Saved contact • 08123456789",
+    saved: true,
+  },
+];
 
 export default function CreateSplitScreen() {
   const { colors, mode } = useTheme();
@@ -73,32 +103,129 @@ export default function CreateSplitScreen() {
 
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const prefill = route.params ?? {};
+  const prefill = (route.params as any) ?? {};
   const [splitName, setSplitName] = useState(prefill.splitName ?? "");
   const [participants, setParticipants] = useState<Participant[]>([]);
   const { currentUser } = useAppStore();
+  const myAccountNumber = currentUser?.accountNumber ?? CURRENT_USER.accountNumber;
 
-  const handleBrowseContacts = async () => {
-    const { status } = await Contacts.requestPermissionsAsync();
-    if (status !== "granted") return;
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [accounts, setAccounts] = useState<Beneficiary[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  // Non-GTWorld contacts typed in during this session; they sit in the same list.
+  const [contacts, setContacts] = useState<PickerItem[]>(SAVED_CONTACTS);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualPhone, setManualPhone] = useState("");
+  const [manualError, setManualError] = useState<string | null>(null);
 
-    const contact = await Contacts.presentContactPickerAsync();
-    if (!contact) return; // user cancelled the picker
+  const items: PickerItem[] = [
+    ...accounts
+      .filter(
+        (acc) =>
+          !SAVED_CONTACTS.some((c) => phoneKey(c.phone) === phoneKey(acc.phone ?? ""))
+      )
+      .map((acc) => ({
+        key: accountId(acc),
+        name: acc.fullName,
+        phone: acc.phone ?? "",
+        isGTUser: true,
+        meta: `GTBank • ${acc.accountNumber}`,
+      })),
+    ...contacts,
+  ];
 
-    const name = resolveName(contact);
-    const newParticipant: Participant = {
-      id: `device-${contact.id}`,
-      name,
-      initials: initialsFor(name),
-      phone: contact.phoneNumbers?.[0]?.number ?? "",
-      email: "",
-      isGTUser: false,
-    };
+  const isAdded = (item: PickerItem) => participants.some((p) => p.id === item.key);
 
+  const savedItems = items.filter((i) => i.saved);
+  const otherItems = items.filter((i) => !i.saved);
+
+  const openPicker = async () => {
+    setSelected([]);
+    setContacts(SAVED_CONTACTS);
+    setManualOpen(false);
+    setManualName("");
+    setManualPhone("");
+    setManualError(null);
+    setPickerOpen(true);
+    setAccountsLoading(true);
+    setAccountsError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`);
+      if (!response.ok) throw new Error("Request failed");
+      const data = await response.json();
+      const list: Beneficiary[] = Array.isArray(data) ? data : [];
+      // The picker offers every other account on the backend, never yourself.
+      setAccounts(list.filter((b) => b.accountNumber !== myAccountNumber));
+    } catch (e) {
+      setAccountsError("Could not load accounts. Check your connection.");
+    } finally {
+      setAccountsLoading(false);
+    }
+  };
+
+  const toggleItem = (item: PickerItem) => {
+    if (isAdded(item)) return;
+    setSelected((prev) =>
+      prev.includes(item.key)
+        ? prev.filter((k) => k !== item.key)
+        : [...prev, item.key]
+    );
+  };
+
+  /** Drafts a contact that is not on GTWorld into the list, pre-selected. */
+  const addManualContact = () => {
+    const name = manualName.trim();
+    const phone = manualPhone.trim();
+
+    if (!name) {
+      setManualError("Enter the contact's name.");
+      return;
+    }
+    if (phone.replace(/\D/g, "").length < 10) {
+      setManualError("Enter a valid phone number.");
+      return;
+    }
+    const key = `contact-${phoneKey(phone)}`;
+    if (contacts.some((c) => c.key === key)) {
+      setManualError("This contact is already in the list.");
+      return;
+    }
+    if (participants.some((p) => phoneKey(p.phone) === phoneKey(phone))) {
+      setManualError("That number is already a participant in this split.");
+      return;
+    }
+
+    setContacts((prev) => [
+      ...prev,
+      { key, name, phone, isGTUser: false, meta: `Not on GTWorld • ${phone}` },
+    ]);
+    setSelected((prev) => (prev.includes(key) ? prev : [...prev, key]));
+    setManualName("");
+    setManualPhone("");
+    setManualError(null);
+  };
+
+  const confirmAdd = () => {
     setParticipants((prev) => {
-      if (prev.some((p) => p.id === newParticipant.id)) return prev; // no duplicates
-      return [...prev, newParticipant];
+      const existing = new Set(prev.map((p) => p.id));
+      const next = [...prev];
+      items.forEach((item) => {
+        if (!selected.includes(item.key) || existing.has(item.key)) return;
+        next.push({
+          id: item.key,
+          name: item.name,
+          initials: initialsFor(item.name),
+          phone: item.phone,
+          email: "",
+          isGTUser: item.isGTUser,
+        });
+      });
+      return next;
     });
+    setPickerOpen(false);
   };
 
   const updateEmail = (id: string, email: string) => {
@@ -118,6 +245,7 @@ export default function CreateSplitScreen() {
       splitName,
       participants,
       prefillAmount: prefill.totalAmount,
+      narration: prefill.narration ?? null,
     });
   };
 
@@ -165,7 +293,7 @@ export default function CreateSplitScreen() {
 
         <View style={styles.contactHeaderRow}>
           <Text style={styles.label}>Participants</Text>
-          <Pressable onPress={handleBrowseContacts} style={styles.addButton}>
+          <Pressable onPress={openPicker} style={styles.addButton}>
             <Ionicons name="add" size={scale(16)} color={GT_ORANGE} />
             <Text style={styles.browseLink}>Add participant</Text>
           </Pressable>
@@ -178,7 +306,7 @@ export default function CreateSplitScreen() {
             </View>
             <Text style={styles.emptyTitle}>No participants selected</Text>
             <Text style={styles.emptySubtitle}>
-              Tap "Add participant" to pick someone from your contacts
+              Tap "Add participant" to pick from the other accounts or add any contact
             </Text>
           </View>
         ) : (
@@ -248,6 +376,256 @@ export default function CreateSplitScreen() {
           <Text style={styles.proceedText}>Proceed</Text>
         </Pressable>
       </View>
+
+      <Modal
+        visible={pickerOpen}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setPickerOpen(false)}
+      >
+        <View style={styles.pickerRoot}>
+          <Pressable style={styles.pickerBackdrop} onPress={() => setPickerOpen(false)} />
+          <View style={styles.pickerSheet}>
+            <View style={styles.pickerHandle} />
+            <Text style={styles.pickerTitle}>Add participants</Text>
+            <Text style={styles.pickerSubtitle}>
+              Select from the other accounts on GTWorld, or add any contact.
+            </Text>
+
+            <Pressable
+              onPress={() => {
+                setManualOpen((o) => !o);
+                setManualError(null);
+              }}
+              style={({ pressed }) => [styles.manualToggle, pressed && { opacity: 0.75 }]}
+            >
+              <Ionicons name="person-add-outline" size={scale(16)} color={GT_ORANGE} />
+              <Text style={styles.manualToggleText}>Add a contact not on GTWorld</Text>
+              <Ionicons
+                name={manualOpen ? "chevron-up" : "chevron-down"}
+                size={scale(16)}
+                color={GT_ORANGE}
+              />
+            </Pressable>
+
+            {manualOpen && (
+              <View style={styles.manualForm}>
+                <TextInput
+                  style={styles.manualInput}
+                  placeholder="Contact's full name"
+                  placeholderTextColor={colors.textMuted}
+                  value={manualName}
+                  onChangeText={(v) => {
+                    setManualName(v);
+                    setManualError(null);
+                  }}
+                />
+                <TextInput
+                  style={styles.manualInput}
+                  placeholder="Phone number"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="phone-pad"
+                  value={manualPhone}
+                  onChangeText={(v) => {
+                    setManualPhone(v);
+                    setManualError(null);
+                  }}
+                />
+                {!!manualError && <Text style={styles.manualError}>{manualError}</Text>}
+                <Pressable
+                  onPress={addManualContact}
+                  style={({ pressed }) => [styles.manualAddBtn, pressed && { opacity: 0.75 }]}
+                >
+                  <Ionicons name="add" size={scale(16)} color={GT_ORANGE} />
+                  <Text style={styles.manualAddBtnText}>Add to list</Text>
+                </Pressable>
+              </View>
+            )}
+
+            <ScrollView
+              style={styles.pickerScroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {savedItems.length > 0 && (
+                <>
+                  <Text style={styles.pickerSectionLabel}>Contacts</Text>
+                  {savedItems.map((item) => {
+                    const tint = tintFor(item.key);
+                    const added = isAdded(item);
+                    const on = selected.includes(item.key);
+                    return (
+                      <Pressable
+                        key={item.key}
+                        onPress={() => toggleItem(item)}
+                        disabled={added}
+                        style={({ pressed }) => [
+                          styles.contactCard,
+                          added && styles.pickRowAdded,
+                          on && styles.contactCardSelected,
+                          pressed && !added && { opacity: 0.7 },
+                        ]}
+                      >
+                        <View style={styles.contactRow}>
+                          <View
+                            style={[
+                              styles.avatar,
+                              mode === "light"
+                                ? { backgroundColor: tint.bg, borderColor: tint.border }
+                                : { backgroundColor: `${tint.fg}2E`, borderColor: `${tint.fg}55` },
+                            ]}
+                          >
+                            <Text style={[styles.avatarText, { color: tint.fg }]}>
+                              {initialsFor(item.name)}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                            <Text style={styles.contactName} numberOfLines={1}>
+                              {item.name}
+                            </Text>
+                            <Text style={styles.contactPhone} numberOfLines={1}>
+                              {item.phone}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.checkCircle,
+                              (on || added) && styles.checkCircleOn,
+                              added && !on && styles.checkCircleMuted,
+                            ]}
+                          >
+                            {(on || added) && (
+                              <Ionicons
+                                name="checkmark"
+                                size={scale(16)}
+                                color={on && !added ? "#fff" : colors.textSecondary}
+                              />
+                            )}
+                          </View>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </>
+              )}
+              {accountsLoading ? (
+                <View style={styles.pickerStateWrap}>
+                  <ActivityIndicator color={colors.primary} />
+                </View>
+              ) : otherItems.length === 0 ? (
+                <View style={styles.pickerStateWrap}>
+                  <Ionicons
+                    name="people-outline"
+                    size={scale(36)}
+                    color={colors.textMuted}
+                  />
+                  <Text style={styles.pickerStateText}>
+                    {accountsError
+                      ? "Could not load accounts. You can still add a contact above."
+                      : "No other accounts available. Add a contact above."}
+                  </Text>
+                  {accountsError && (
+                    <Pressable onPress={openPicker} style={styles.pickerRetry}>
+                      <Text style={styles.pickerRetryText}>Try again</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.pickerSectionLabel}>Other accounts</Text>
+                  {accountsError && (
+                    <Text style={styles.pickerWarning}>
+                      Could not load GTWorld accounts. Only your added contacts are shown.
+                    </Text>
+                  )}
+                  {otherItems.map((item) => {
+                    const tint = tintFor(item.key);
+                    const added = isAdded(item);
+                    const on = selected.includes(item.key);
+                    return (
+                      <Pressable
+                        key={item.key}
+                        onPress={() => toggleItem(item)}
+                        disabled={added}
+                        style={({ pressed }) => [
+                          styles.pickRow,
+                          added && styles.pickRowAdded,
+                          !item.isGTUser && styles.pickRowExternal,
+                          pressed && !added && { opacity: 0.7 },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.avatar,
+                            mode === "light"
+                              ? { backgroundColor: tint.bg, borderColor: tint.border }
+                              : { backgroundColor: `${tint.fg}2E`, borderColor: `${tint.fg}55` },
+                          ]}
+                        >
+                          <Text style={[styles.avatarText, { color: tint.fg }]}>
+                            {initialsFor(item.name)}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                          <Text style={styles.pickName} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <Text style={styles.pickMeta} numberOfLines={1}>
+                            {item.meta}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.checkCircle,
+                            (on || added) && styles.checkCircleOn,
+                            added && !on && styles.checkCircleMuted,
+                          ]}
+                        >
+                          {(on || added) && (
+                            <Ionicons
+                              name="checkmark"
+                              size={scale(16)}
+                              color={on && !added ? "#fff" : colors.textSecondary}
+                            />
+                          )}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </>
+              )}
+            </ScrollView>
+
+            <View style={styles.pickerActions}>
+              <Pressable
+                onPress={() => setPickerOpen(false)}
+                style={({ pressed }) => [
+                  styles.pickerBtn,
+                  styles.pickerBtnOutline,
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <Text style={styles.pickerBtnOutlineText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmAdd}
+                disabled={selected.length === 0}
+                style={({ pressed }) => [
+                  styles.pickerBtn,
+                  styles.pickerBtnPrimary,
+                  selected.length === 0 && styles.pickerBtnDisabled,
+                  pressed && selected.length > 0 && { opacity: 0.85 },
+                ]}
+              >
+                <Text style={styles.pickerBtnPrimaryText}>
+                  Add{selected.length > 0 ? ` (${selected.length})` : ""}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -468,6 +846,208 @@ function getStyles(colors: any, scale: (n: number) => number, mode: string) {
       textAlign: "center",
       marginTop: spacing.sm,
     },
+    pickerRoot: { flex: 1, justifyContent: "flex-end" },
+    pickerBackdrop: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.35)",
+    },
+    pickerSheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xl,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      elevation: 16,
+    },
+    pickerHandle: {
+      alignSelf: "center",
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+      marginBottom: spacing.md,
+    },
+    pickerTitle: {
+      ...typography.bodyBold,
+      fontSize: scale(19),
+      lineHeight: scale(25),
+      color: colors.textPrimary,
+    },
+    pickerSubtitle: {
+      ...typography.small,
+      fontSize: scale(13),
+      lineHeight: scale(18),
+      color: colors.textSecondary,
+      marginTop: 4,
+      marginBottom: spacing.md,
+    },
+    manualToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingVertical: 10,
+      paddingHorizontal: spacing.sm,
+      borderRadius: GT_RADIUS,
+      borderWidth: 1,
+      borderStyle: "dashed",
+      borderColor: GT_ORANGE_BORDER,
+      backgroundColor: colors.primaryLight,
+      marginBottom: spacing.sm,
+    },
+    manualToggleText: {
+      ...typography.smallBold,
+      fontSize: scale(13),
+      lineHeight: scale(18),
+      color: GT_ORANGE,
+      flex: 1,
+    },
+    manualForm: {
+      gap: spacing.sm,
+      padding: spacing.sm,
+      borderRadius: GT_RADIUS,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: mode === "light" ? "#F7F8FB" : colors.background,
+      marginBottom: spacing.sm,
+    },
+    manualInput: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: GT_RADIUS,
+      paddingVertical: 10,
+      paddingHorizontal: spacing.md,
+      ...typography.body,
+      fontSize: scale(14),
+      color: colors.textPrimary,
+    },
+    manualError: {
+      ...typography.small,
+      fontSize: scale(12),
+      lineHeight: scale(16),
+      color: colors.danger,
+    },
+    manualAddBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      height: scale(38),
+      borderRadius: GT_RADIUS,
+      backgroundColor: GT_ORANGE_LIGHT,
+      borderWidth: 1,
+      borderColor: GT_ORANGE_BORDER,
+    },
+    manualAddBtnText: {
+      ...typography.smallBold,
+      fontSize: scale(13),
+      lineHeight: scale(18),
+      color: GT_ORANGE,
+    },
+    pickerScroll: { maxHeight: scale(330) },
+    pickerSectionLabel: {
+      ...typography.smallBold,
+      fontSize: scale(12),
+      lineHeight: scale(16),
+      color: colors.textSecondary,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      marginTop: spacing.xs,
+      marginBottom: spacing.xs,
+    },
+    contactCardSelected: {
+      borderColor: GT_ORANGE_BORDER,
+      backgroundColor: colors.primaryLight,
+    },
+    pickerWarning: {
+      ...typography.small,
+      fontSize: scale(12),
+      lineHeight: scale(16),
+      color: colors.danger,
+      marginBottom: spacing.sm,
+    },
+    pickerStateWrap: {
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.xl,
+    },
+    pickerStateText: {
+      ...typography.small,
+      fontSize: scale(13),
+      lineHeight: scale(18),
+      color: colors.textSecondary,
+      textAlign: "center",
+      paddingHorizontal: spacing.lg,
+    },
+    pickerRetry: {
+      marginTop: spacing.xs,
+      paddingVertical: 8,
+      paddingHorizontal: spacing.md,
+      borderRadius: 20,
+      backgroundColor: colors.primaryLight,
+    },
+    pickerRetryText: { ...typography.smallBold, color: GT_ORANGE },
+    pickRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: GT_RADIUS,
+      padding: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    pickRowAdded: { opacity: 0.6 },
+    pickRowExternal: { borderStyle: "dashed", borderColor: GT_ORANGE_BORDER },
+    pickName: {
+      ...typography.bodyBold,
+      fontSize: scale(15),
+      lineHeight: scale(20),
+      color: colors.textPrimary,
+    },
+    pickMeta: {
+      ...typography.small,
+      fontSize: scale(13),
+      lineHeight: scale(18),
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    checkCircle: {
+      width: scale(26),
+      height: scale(26),
+      borderRadius: scale(13),
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: spacing.sm,
+    },
+    checkCircleOn: { backgroundColor: GT_ORANGE, borderColor: GT_ORANGE },
+    checkCircleMuted: { backgroundColor: colors.primaryLight },
+    pickerActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+    pickerBtn: {
+      flex: 1,
+      height: scale(46),
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: spacing.sm,
+    },
+    pickerBtnOutline: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+    pickerBtnOutlineText: { ...typography.button, fontSize: scale(15), color: colors.textPrimary },
+    pickerBtnPrimary: { backgroundColor: GT_ORANGE },
+    pickerBtnPrimaryText: { ...typography.button, fontSize: scale(15), color: colors.white },
+    pickerBtnDisabled: { opacity: 0.45 },
     footer: {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.sm,

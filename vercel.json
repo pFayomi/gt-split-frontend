@@ -1,0 +1,22 @@
+{
+  "buildCommand": "npx expo export -p web",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://gt-split-backend.vercel.app/:path*"
+    },
+    {
+      "source": "/pay/:path*",
+      "destination": "https://gt-split-backend.vercel.app/pay/:path*"
+    },
+    {
+      "source": "/auto-split/:path*",
+      "destination": "https://gt-split-backend.vercel.app/auto-split/:path*"
+    },
+    {
+      "source": "/((?!api/|pay/|auto-split/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

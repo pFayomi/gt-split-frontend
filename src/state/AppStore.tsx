@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Split, Participant, Transaction, SplitType } from "../data/types";
+import { Split, Participant, Transaction, SplitType, Beneficiary } from "../data/types";
 import { SEED_TRANSACTIONS, CURRENT_USER } from "../data/seed";
-import { API_BASE_URL } from "../data/config";
+import { API_BASE_URL, TRANSFER_PIN } from "../data/config";
 import { computeEqualSplit } from "../data/splitMaths";
 
 const STORAGE_KEY = "gt-split:v1";
@@ -20,6 +20,7 @@ type CreateSplitInput = {
   totalAmount: number;
   splitType: SplitType;
   sourceAccountLabel: string;
+  narration?: string | null;
   participants: { id: string; name: string; initials: string; phone: string; email?: string; isGTUser: boolean; customShare?: number }[];
 };
 
@@ -33,6 +34,12 @@ type AppStoreValue = {
   login: (accountNumber: string, pin: string) => Promise<{ success: boolean; error?: string }>;
   loginWithBiometrics: () => void;
   logout: () => void;
+  verifyPin: (pin: string) => Promise<boolean>;
+  sendTransfer: (
+    beneficiary: Beneficiary,
+    amount: number,
+    narration?: string
+  ) => Promise<{ success: boolean; error?: string }>;
   splits: Split[];
   transactions: Transaction[];
   createSplit: (input: CreateSplitInput) => Promise<Split>;
@@ -56,6 +63,7 @@ function mapServerTransactions(txData: any[]): Transaction[] {
     direction: t.direction,
     date: new Date(t.createdAt).toLocaleDateString(),
     splitId: t.splitId,
+    narration: t.narration ?? null,
   }));
 }
 
@@ -137,6 +145,16 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithBiometrics = useCallback(() => setIsAuthenticated(true), []);
 
+  /**
+   * Confirms a transfer with the 4-digit transfer PIN. This is not the login PIN:
+   * /auth/login validates the 6-digit login PIN, so a 4-digit transfer PIN sent
+   * there could never succeed. Login itself is unchanged.
+   */
+  const verifyPin = useCallback(async (pin: string) => {
+    if (!currentUser) return false;
+    return pin === TRANSFER_PIN;
+  }, [currentUser]);
+
   const refreshBalance = useCallback(async () => {
     if (!currentUser) return;
     try {
@@ -151,6 +169,57 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       // ignore
     }
   }, [currentUser]);
+
+  /**
+   * Moves money from the signed-in account to a beneficiary: debit the sender,
+   * credit the receiver, then reload the sender's balance and history so the
+   * home screen reflects the new figures straight away. The optional narration
+   * is the sender's note and is stored on both sides of the transfer.
+   */
+  const sendTransfer = useCallback(
+    async (beneficiary: Beneficiary, amount: number, narration?: string) => {
+      if (!currentUser) return { success: false, error: "You are not signed in" };
+      const note = narration?.trim() || undefined;
+      try {
+        const debitRes = await fetch(`${API_BASE_URL}/transactions/debit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accountNumber: currentUser.accountNumber,
+            amount,
+            kind: "transfer",
+            title: `Transfer to ${beneficiary.fullName}`,
+            subtitle: `To ${beneficiary.accountNumber}`,
+            narration: note,
+          }),
+        });
+
+        if (!debitRes.ok) {
+          const failure = await debitRes.json().catch(() => null);
+          return { success: false, error: failure?.message ?? "Transfer failed. Check your balance." };
+        }
+
+        await fetch(`${API_BASE_URL}/transactions/credit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accountNumber: beneficiary.accountNumber,
+            amount,
+            kind: "transfer",
+            title: `Transfer from ${currentUser.fullName}`,
+            subtitle: `From ${currentUser.accountNumber}`,
+            narration: note,
+          }),
+        });
+
+        await refreshBalance();
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: "Could not reach the server." };
+      }
+    },
+    [currentUser, refreshBalance]
+  );
 
   const createSplit = useCallback(async (input: CreateSplitInput) => {
     const hostShare =
@@ -168,6 +237,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         hostName: currentUser?.fullName ?? CURRENT_USER.name,
         splitType: input.splitType,
         sourceAccountLabel: input.sourceAccountLabel,
+        narration: input.narration ?? null,
         participants: input.participants.map((p) => ({
           name: p.name,
           initials: p.initials,
@@ -250,13 +320,15 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       login,
       loginWithBiometrics,
       logout,
+      verifyPin,
+      sendTransfer,
       splits,
       transactions,
       createSplit,
       markParticipantPaid,
       cancelSplit,
     }),
-    [ready, isAuthenticated, authToken, currentUser, balance, refreshBalance, splits, transactions, login, loginWithBiometrics, logout, createSplit, markParticipantPaid, cancelSplit]
+    [ready, isAuthenticated, authToken, currentUser, balance, refreshBalance, splits, transactions, login, loginWithBiometrics, logout, verifyPin, sendTransfer, createSplit, markParticipantPaid, cancelSplit]
   );
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;

@@ -26,11 +26,12 @@ export default function TransactionDetailScreen() {
 
   // Rows are only drawn when there is data for them (nothing is invented).
   const rows: { label: string; value: string }[] = [
-    { label: "Account debited", value: accountNumber },
-    { label: "Sender", value: currentUser?.fullName ?? CURRENT_USER.name },
+    { label: transaction.direction === "out" ? "Account debited" : "Account credited", value: accountNumber },
+    { label: transaction.direction === "out" ? "Sender" : "Beneficiary", value: currentUser?.fullName ?? CURRENT_USER.name },
     { label: "Receiver Bank", value: transaction.receiverBank },
     { label: "Receiver Account", value: transaction.receiverAccount },
     { label: "Transaction Type", value: transaction.kind.toUpperCase() },
+    { label: "Narration", value: transaction.narration },
     { label: "SessionID", value: transaction.sessionId },
     { label: "Remark", value: transaction.remark },
   ].filter((r) => !!r.value);
@@ -72,13 +73,15 @@ export default function TransactionDetailScreen() {
             <Ionicons name="document-text-outline" size={20} color={colors.primary} />
             <Text style={styles.pillText}>Receipt</Text>
           </Pressable>
-          {transaction.kind !== "billsplit" && (
+          {/* Only money leaving the account can be split again — an inbound credit alert is not splittable. */}
+          {transaction.direction === "out" && transaction.kind !== "billsplit" && (
             <Pressable
               style={styles.pill}
               onPress={() =>
                 navigation.navigate("CreateSplit", {
                   splitName: `${transaction.subtitle} Split`,
                   totalAmount: transaction.amount,
+                  narration: transaction.narration ?? transaction.remark ?? null,
                 })
               }
             >

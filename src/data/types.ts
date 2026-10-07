@@ -34,6 +34,14 @@ export type Contact = {
 
 export type TransactionKind = "transfer" | "charge" | "airtime" | "billsplit";
 
+/** A GT World account holder the signed-in user can send money to. */
+export type Beneficiary = {
+  id: string;
+  accountNumber: string;
+  fullName: string;
+  phone?: string | null;
+};
+
 export type Transaction = {
   id: string;
   kind: TransactionKind;
@@ -43,6 +51,8 @@ export type Transaction = {
   direction: "in" | "out";
   date: string;
   splitId?: string;
+  /** Free-text note the sender typed on the transfer, shown in the details screen. */
+  narration?: string | null;
   sessionId?: string;
   meta?: {
     senderName?: string;
